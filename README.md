@@ -2,13 +2,20 @@
 
 
 Added features:
+
 -AI Movement(Pathfinding+Avoidance(Avoidance is Experimental))
+
+-PID Steering
+
 -Working Examples
+
 -Less strict design for owning pawns
+
 -Sound Effects
 
 
 
+![SCREENSHOT](SCREENSHOT.jpg)
 
 ## Legal info
 
