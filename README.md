@@ -1,14 +1,13 @@
 # PsRealVehicle
 
-[![statusIcon](https://teamcity.ufna.dev/app/rest/builds/buildType:(id:Pushkin_PsRealVehicle_ClangFormatCheck)/statusIcon.svg)](https://teamcity.ufna.dev/viewType.html?buildTypeId=Pushkin_PsRealVehicle_ClangFormatCheck&guest=1)
 
-PsRealVehicle is the plugin for [Unreal Engine 4](https://www.unrealengine.com/) with simple force-driven vehicle simulation.
+Added features:
+-AI Movement(Pathfinding+Avoidance(Avoidance is Experimental))
+-Working Examples
+-Less strict design for owning pawns
+-Sound Effects
 
-Check the [Wiki](https://github.com/PushkinStudio/PsRealVehicle/wiki) tab for plugin usage examples and installation notes.
 
-![SCREENSHOT](SCREENSHOT.jpg)
-
-The plugin is proudly used for [Armored Warfare: Assault](https://awa.my.com) development.
 
 
 ## Legal info
