@@ -15,7 +15,8 @@ struct FDustInfo
 	/** */
 	UPROPERTY(EditDefaultsOnly)
 	TEnumAsByte<EPhysicalSurface> SurfaceType;
-
+	UPROPERTY(EditDefaultsOnly)
+	FVector Scale=FVector(1);
 	/** Cm/s */
 	UPROPERTY(EditDefaultsOnly)
 	float ActivationMinSpeed;
@@ -44,6 +45,8 @@ class UPrvVehicleDustEffect : public UDataAsset
 	UPROPERTY(EditDefaultsOnly)
 	UParticleSystem* DefaultFX;
 
+	UPROPERTY(EditDefaultsOnly)
+	FVector DefaulScale=FVector(1);
 	/** Cm/s */
 	UPROPERTY(EditDefaultsOnly)
 	float DefaultMinSpeed;
@@ -53,7 +56,7 @@ class UPrvVehicleDustEffect : public UDataAsset
 	TArray<FDustInfo> DustEffects;
 
 	/** Determine correct FX */
-	UParticleSystem* GetDustFX(EPhysicalSurface SurfaceType, float TargetSpeed);
+	UParticleSystem* GetDustFX(EPhysicalSurface SurfaceType, float TargetSpeed,FVector& Scale);
 
 	UPrvVehicleDustEffect()
 	{

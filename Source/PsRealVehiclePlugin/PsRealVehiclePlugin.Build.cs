@@ -19,9 +19,10 @@ namespace UnrealBuildTool.Rules
 			PublicDependencyModuleNames.AddRange(
 				new string[]
 				{
-					"Core",
+					"Core"
+					,"AIModule",
 					"CoreUObject",
-					"Engine",
+					"Engine","PhysicsCore"
 					// ... add other public dependencies that you statically link with here ...
 				});
 

@@ -7,19 +7,21 @@ UPrvVehicleDustEffect::UPrvVehicleDustEffect(const FObjectInitializer& ObjectIni
 {
 }
 
-UParticleSystem* UPrvVehicleDustEffect::GetDustFX(EPhysicalSurface SurfaceType, float CurrentSpeed)
+UParticleSystem* UPrvVehicleDustEffect::GetDustFX(EPhysicalSurface SurfaceType, float CurrentSpeed,FVector& Scale)
 {
 	for (auto DustEffect : DustEffects)
 	{
 		if (DustEffect.SurfaceType == SurfaceType &&
 			CurrentSpeed >= DustEffect.ActivationMinSpeed)
 		{
+			Scale=DustEffect.Scale;
 			return DustEffect.DustFX;
 		}
 	}
 
 	if (CurrentSpeed >= DefaultMinSpeed)
 	{
+		Scale=DefaulScale;
 		return DefaultFX;
 	}
 

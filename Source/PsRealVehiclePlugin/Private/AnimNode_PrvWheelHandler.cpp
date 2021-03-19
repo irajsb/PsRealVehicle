@@ -166,14 +166,14 @@ void FAnimNode_PrvWheelHandler::UpdateInternal(const FAnimationUpdateContext& Co
 void FAnimNode_PrvWheelHandler::Initialize_AnyThread(const FAnimationInitializeContext& Context)
 {
 #if !UE_SERVER
-	// TODO: only check vehicle anim instance
+	
 	// UPrvVehicleAnimInstance
-	APrvVehicle* Vehicle = Cast<APrvVehicle>(Context.AnimInstanceProxy->GetSkelMeshComponent()->GetOwner());
+	APawn* Vehicle = Cast<APawn>(Context.AnimInstanceProxy->GetSkelMeshComponent()->GetOwner());
 
 	// we only support vehicle for this class
 	if (Vehicle != nullptr)
 	{
-		VehicleSimComponent = Vehicle->GetVehicleMovementComponent();
+		VehicleSimComponent = Cast<UPrvVehicleMovementComponent>(Vehicle->GetMovementComponent());
 
 		int32 NumOfwheels = VehicleSimComponent->SuspensionSetup.Num();
 		if (NumOfwheels > 0)
@@ -191,7 +191,7 @@ void FAnimNode_PrvWheelHandler::Initialize_AnyThread(const FAnimationInitializeC
 				WheelSim.WheelIndex = WheelIndex;
 				WheelSim.BoneReference.BoneName = WheelSetup.BoneName;
 
-				// TODO:
+				
 				// WheelSim.SuspReference.BoneName = WheelSetup.SuspBoneName;
 				WheelSim.SuspReference.BoneName = FName(*WheelSetup.BoneName.ToString().Replace(TEXT("Wheel"), TEXT("Suspension"), ESearchCase::Type::CaseSensitive));
 

@@ -5,10 +5,53 @@
 #include "Curves/CurveFloat.h"
 #include "GameFramework/PawnMovementComponent.h"
 #include "Particles/ParticleSystemComponent.h"
-
+#include "AI/Navigation/NavigationAvoidanceTypes.h"
+#include "AI/RVOAvoidanceInterface.h"
 #include "PrvVehicleMovementComponent.generated.h"
 
+
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnGearChange, int, index, bool, Gearup);
 /** Rigid body error correction data */
+
+
+USTRUCT()
+struct FPIDController
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, Category = "PID")
+	float Proportional;
+
+	UPROPERTY(EditAnywhere, Category = "PID")
+	float Integral;
+
+	UPROPERTY(EditAnywhere, Category = "PID")
+	float Derivative;
+
+	UPROPERTY(EditAnywhere, Category = "PID")
+	float ErrorMin;
+
+	UPROPERTY(EditAnywhere, Category = "PID")
+	float ErrorMax;
+
+	float ErrorSum;
+	float LastPosition;
+
+	FPIDController() {}
+
+	FPIDController(float P, float I, float D, float ErrorMin, float ErrorMax)
+	{
+		Proportional = P;
+		Integral = I;
+		Derivative = D;
+		this->ErrorMin = ErrorMin;
+		this->ErrorMax = ErrorMax;
+	}
+
+	float CalcNewInput(float Error, float Position);
+};
+
 USTRUCT()
 struct FOldRigidBodyErrorCorrection
 {
@@ -370,7 +413,7 @@ struct FAnimNode_PrvWheelHandler;
  * Component that uses Torque and Force to move tracked vehicles
  */
 UCLASS(config = Game, defaultconfig)
-class PSREALVEHICLEPLUGIN_API UPrvVehicleMovementComponent : public UPawnMovementComponent
+class PSREALVEHICLEPLUGIN_API UPrvVehicleMovementComponent : public UPawnMovementComponent,public IRVOAvoidanceInterface
 {
 	GENERATED_UCLASS_BODY()
 
@@ -383,7 +426,7 @@ protected:
 
 	virtual void InitializeComponent() override;
 	virtual void TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
-
+	
 	//////////////////////////////////////////////////////////////////////////
 	// Physics initialization
 
@@ -416,6 +459,7 @@ protected:
 
 	void UpdateEngine();
 	void UpdateDriveForce();
+	void UpdateSound(float DeltaTime);
 
 	/** Tick of anti-rollover system */
 	void UpdateAntiRollover(float DeltaTime);
@@ -437,6 +481,8 @@ protected:
 	/** Shift gear up or down 
 	 * Attn.! It doesn't think about why it happend, so it should be done externally!) */
 	void ShiftGear(bool bShiftUp);
+	/*Same but for timers*/
+	void ShiftGearByTimer();
 
 	//////////////////////////////////////////////////////////////////////////
 	// Network
@@ -445,6 +491,162 @@ protected:
 	UFUNCTION(reliable, server, WithValidation)
 	void ServerUpdateState(uint16 InQuantizeInput);
 
+
+
+	/*
+	 * AI
+	 */
+	public:
+
+	UPROPERTY(EditAnywhere, Category = "PID")
+	FPIDController ThrottleController = FPIDController(0.f, 0.f, 0.f, 0.f, 0.f);
+
+	UPROPERTY(EditAnywhere, Category = "PID")
+	FPIDController SteeringController = FPIDController(0, 0, 0, 0, 0);
+
+	FVector InitialLocation;
+	FVector InitialDirection;
+	bool bTurningAround = false;
+	bool bTurningForward=false;
+	float TempThrottle;
+	float TempSteer;
+	
+	/** Compute steering input */
+	float CalcSteeringInput();
+	/** Compute throttle input */
+	bool AIMoving;
+	virtual float CalcThrottleInput();
+	virtual void RequestDirectMove(const FVector& MoveVelocity, bool bForceMaxSpeed) override;
+	
+	virtual void StopActiveMovement() override;
+	UPROPERTY(BlueprintReadOnly)
+	FVector PathMoveInput;
+
+	/*avoidance*/
+	/** If set, component will use RVO avoidance */
+
+	virtual float GetMaxSpeed() const override;
+	UPROPERTY(Category = "Avoidance", EditAnywhere, BlueprintReadWrite)
+	float MaxSpeed=1000000;
+	UPROPERTY(Category = "Avoidance", EditAnywhere, BlueprintReadWrite)
+	uint8 bUseRVOAvoidance : 1;
+	//let others dodge us
+	uint8 bIsPlayerRVO : 1;
+	/** Was avoidance updated in this frame? */
+	UPROPERTY(Transient)
+	uint32 bWasAvoidanceUpdated : 1;
+
+
+	// RVO Avoidance
+
+	/** Vehicle Radius to use for RVO avoidance (usually half of vehicle width) */
+	UPROPERTY(Category = "Avoidance", EditAnywhere, BlueprintReadWrite)
+	float RVOAvoidanceRadius;
+	
+	/** Vehicle Height to use for RVO avoidance (usually vehicle height) */
+	UPROPERTY(Category = "Avoidance", EditAnywhere, BlueprintReadWrite)
+	float RVOAvoidanceHeight;
+	
+	/** Area Radius to consider for RVO avoidance */
+	UPROPERTY(Category = "Avoidance", EditAnywhere, BlueprintReadWrite)
+	float AvoidanceConsiderationRadius;
+
+	/** Value by which to alter steering per frame based on calculated avoidance */
+	UPROPERTY(Category = "Avoidance", EditAnywhere, BlueprintReadWrite, meta = (ClampMin = "0.0", UIMin = "0.0", ClampMax = "1.0", UIMax = "1.0"))
+	float RVOSteeringStep;
+
+	/** Value by which to alter throttle per frame based on calculated avoidance */
+	UPROPERTY(Category = "Avoidance", EditAnywhere, BlueprintReadWrite, meta = (ClampMin = "0.0", UIMin = "0.0", ClampMax = "1.0", UIMax = "1.0"))
+	float RVOThrottleStep;
+	
+	/** calculate RVO avoidance and apply it to current velocity */
+	virtual void CalculateAvoidanceVelocity(float DeltaTime);
+
+	/** No default value, for now it's assumed to be valid if GetAvoidanceManager() returns non-NULL. */
+	UPROPERTY(Category = "Avoidance", VisibleAnywhere, BlueprintReadOnly, AdvancedDisplay)
+	int32 AvoidanceUID;
+
+	/** Moving actor's group mask */
+	UPROPERTY(Category = "Avoidance", EditAnywhere, BlueprintReadOnly, AdvancedDisplay)
+	FNavAvoidanceMask AvoidanceGroup;
+
+	UFUNCTION(BlueprintCallable, Category = "Pawn|Components|WheeledVehicleMovement", meta = (DeprecatedFunction, DeprecationMessage = "Please use SetAvoidanceGroupMask function instead."))
+	void SetAvoidanceGroup(int32 GroupFlags);
+
+	UFUNCTION(BlueprintCallable, Category = "Pawn|Components|WheeledVehicleMovement")
+	void SetAvoidanceGroupMask(const FNavAvoidanceMask& GroupMask);
+	virtual void BeginPlay() override;
+	/** Will avoid other agents if they are in one of specified groups */
+	UPROPERTY(Category = "Avoidance", EditAnywhere, BlueprintReadOnly, AdvancedDisplay)
+	FNavAvoidanceMask GroupsToAvoid;
+
+	UFUNCTION(BlueprintCallable, Category = "Pawn|Components|WheeledVehicleMovement", meta = (DeprecatedFunction, DeprecationMessage = "Please use SetGroupsToAvoidMask function instead."))
+	void SetGroupsToAvoid(int32 GroupFlags);
+
+	UFUNCTION(BlueprintCallable, Category = "Pawn|Components|WheeledVehicleMovement")
+	void SetGroupsToAvoidMask(const FNavAvoidanceMask& GroupMask);
+
+	/** Will NOT avoid other agents if they are in one of specified groups, higher priority than GroupsToAvoid */
+	UPROPERTY(Category = "Avoidance", EditAnywhere, BlueprintReadOnly, AdvancedDisplay)
+	FNavAvoidanceMask GroupsToIgnore;
+
+	UFUNCTION(BlueprintCallable, Category = "Pawn|Components|WheeledVehicleMovement", meta = (DeprecatedFunction, DeprecationMessage = "Please use SetGroupsToIgnoreMask function instead."))
+	void SetGroupsToIgnore(int32 GroupFlags);
+
+	UFUNCTION(BlueprintCallable, Category = "Pawn|Components|WheeledVehicleMovement")
+	void SetGroupsToIgnoreMask(const FNavAvoidanceMask& GroupMask);
+
+	/** De facto default value 0.5 (due to that being the default in the avoidance registration function), indicates RVO behavior. */
+	UPROPERTY(Category = "Avoidance", EditAnywhere, BlueprintReadOnly)
+	float AvoidanceWeight;
+	
+	/** Temporarily holds launch velocity when pawn is to be launched so it happens at end of movement. */
+	UPROPERTY()
+	FVector PendingLaunchVelocity;
+	
+	/** Change avoidance state and register with RVO manager if necessary */
+	UFUNCTION(BlueprintCallable, Category = "Pawn|Components|WheeledVehicleMovement")
+	void SetAvoidanceEnabled(bool bEnable);
+	/** Update RVO Avoidance for simulation */
+	void UpdateAvoidance(float DeltaTime);
+		
+	/** called in Tick to update data in RVO avoidance manager */
+	void UpdateDefaultAvoidance();
+	
+	/** lock avoidance velocity */
+	void SetAvoidanceVelocityLock(class UAvoidanceManager* Avoidance, float Duration);
+	
+	/** Calculated avoidance velocity used to adjust steering and throttle */
+	FVector AvoidanceVelocity;
+	
+	/** forced avoidance velocity, used when AvoidanceLockTimer is > 0 */
+	FVector AvoidanceLockVelocity;
+	
+	/** remaining time of avoidance velocity lock */
+	float AvoidanceLockTimer;
+
+	/** Handle for delegate registered on mesh component */
+	FDelegateHandle MeshOnPhysicsStateChangeHandle;
+	
+	/** BEGIN IRVOAvoidanceInterface */
+	virtual void SetRVOAvoidanceUID(int32 UID) override;
+	virtual int32 GetRVOAvoidanceUID() override;
+	virtual void SetRVOAvoidanceWeight(float Weight) override;
+	virtual float GetRVOAvoidanceWeight() override;
+	virtual FVector GetRVOAvoidanceOrigin() override;
+	virtual float GetRVOAvoidanceRadius() override;
+	virtual float GetRVOAvoidanceHeight() override;
+	virtual float GetRVOAvoidanceConsiderationRadius() override;
+	virtual FVector GetVelocityForRVOConsideration() override;
+	virtual void SetAvoidanceGroupMask(int32 GroupFlags) override;
+	virtual int32 GetAvoidanceGroupMask() override;
+	virtual void SetGroupsToAvoidMask(int32 GroupFlags) override;
+	virtual int32 GetGroupsToAvoidMask() override;
+	virtual void SetGroupsToIgnoreMask(int32 GroupFlags) override;
+	virtual int32 GetGroupsToIgnoreMask() override;
+	/** END IRVOAvoidanceInterface */
+	
+	/**/
 	// MAKE ALL CONFIG PUBLIC
 public:
 	/////////////////////////////////////////////////////////////////////////
@@ -566,7 +768,8 @@ public:
 	/** How far the wheel can go above the resting position */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Suspension)
 	float DefaultLength; /** SuspensionMaxRaise */
-
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Suspension)
+	float 	AntiSlipFactor;
 	/** How far the wheel can drop below the resting position */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Suspension)
 	float DefaultMaxDrop;
@@ -679,6 +882,12 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = EngineSetup)
 	FRuntimeFloatCurve EngineTorqueCurve;
 
+
+	/**  */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = EngineSetup)
+	float CustomTorqueMultiplier;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = EngineSetup)
+	float CustomForceMuliplier;
 	/**  */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = EngineSetup)
 	float EngineExtraPowerRatio;
@@ -778,6 +987,8 @@ public:
 	/** Steering rotation angular speed modificator for SteeringCurve and MaxSpeedCurve */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = SteeringSetup, meta = (editcondition = "bAngularVelocitySteering", ClampMin = "0.0", UIMin = "0.0"))
 	float TurnRateModAngularSpeed;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = SteeringSetup)
+	float AirControl;
 
 	/////////////////////////////////////////////////////////////////////////
 	// Brake system
@@ -875,9 +1086,18 @@ protected:
 	float FinalMOI;
 
 	TArray<FSuspensionState> SuspensionData;
-
+	int32 LastGear;
 	int32 NeutralGear;
 	int32 CurrentGear;
+	FTimerHandle GearChangeHandle;
+	UPROPERTY(EditAnyWhere,Category=Gearbox)
+	float fGearboxLatency;
+	UPROPERTY(EditAnyWhere, Category = Gearbox)
+	bool bZeroTorqueWhenShifting;
+	bool bGearTimer;
+	bool bPendingShiftUp;
+	UPROPERTY(BlueprintReadOnly)
+	bool bHasEngineLoad;
 	bool bReverseGear;
 
 	float LastAutoGearShiftTime;
@@ -978,6 +1198,8 @@ protected:
 	// Vehicle control
 
 public:
+
+	
 	/** Set the user input for the vehicle throttle */
 	UFUNCTION(BlueprintCallable, Category = "PsRealVehicle|Components|VehicleMovement")
 	void SetThrottleInput(float Throttle);
@@ -1170,6 +1392,12 @@ public:
 	bool IsDebug() { return bShowDebug; }
 
 public:
+
+
+	/* OnGearUp*/
+	UPROPERTY(BlueprintAssignable)
+	FOnGearChange GearChange;
+
 	/**  */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Debug)
 	bool bShowDebug;
@@ -1275,7 +1503,34 @@ protected:
 
 	UFUNCTION()
 	void OnRep_RepCosmeticData();
+
+	public:
+
+	UPROPERTY(BlueprintReadOnly)
+	float RpmRatio;
+	
+	//to calculate load
+    float LastRPM;
+	UPROPERTY(BlueprintReadOnly)
+    	float TurboRatio;
+	UPROPERTY(EditAnywhere,Category=Audio)
+	float TurboLerpSpeed;
+	UPROPERTY(BlueprintReadOnly)
+	float Load;
+	
+	
+	UPROPERTY(EditAnywhere,Category=Audio)
+	float AudioInterpSpeed;
+	UPROPERTY(EditAnywhere,Category=Audio)
+	float LoadInterpSpeed;
+	
+	
+
+/*MS boost from effectHandler*/
+float MSBoost;
+
 };
+
 
 //////////////////////////////////////////////////////////////////////////
 // Some helper functions for converting units
