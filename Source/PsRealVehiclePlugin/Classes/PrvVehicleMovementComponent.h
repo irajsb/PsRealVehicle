@@ -344,12 +344,10 @@ struct FTrackInfo
 	float DriveTorque;
 
 	/**  */
-	UPROPERTY(Transient)
-	float KineticFrictionTorque;
+	
 
 	/**  */
-	UPROPERTY(Transient)
-	float RollingFrictionTorque;
+	
 
 	/**  */
 	UPROPERTY(Transient)
@@ -369,8 +367,7 @@ struct FTrackInfo
 		AngularSpeed = 0.f;
 
 		DriveTorque = 0.f;
-		KineticFrictionTorque = 0.f;
-		RollingFrictionTorque = 0.f;
+	
 
 		BrakeRatio = 0.f;
 		DriveForce = FVector::ZeroVector;
@@ -476,7 +473,7 @@ protected:
 	void AnimateWheels(float DeltaTime);
 
 	float ApplyBrake(float DeltaTime, float AngularVelocity, float BrakeRatio);
-	float CalculateFrictionCoefficient(FVector DirectionVelocity, FVector ForwardVector, FVector2D FrictionEllipse);
+	
 
 	/** Shift gear up or down 
 	 * Attn.! It doesn't think about why it happend, so it should be done externally!) */
@@ -638,11 +635,13 @@ protected:
 	virtual float GetRVOAvoidanceHeight() override;
 	virtual float GetRVOAvoidanceConsiderationRadius() override;
 	virtual FVector GetVelocityForRVOConsideration() override;
-	virtual void SetAvoidanceGroupMask(int32 GroupFlags) override;
+	
 	virtual int32 GetAvoidanceGroupMask() override;
-	virtual void SetGroupsToAvoidMask(int32 GroupFlags) override;
-	virtual int32 GetGroupsToAvoidMask() override;
+	virtual void SetAvoidanceGroupMask(int32 GroupFlags) override;
+	 void SetGroupsToAvoidMask(int32 GroupFlags) override;
 	virtual void SetGroupsToIgnoreMask(int32 GroupFlags) override;
+	virtual int32 GetGroupsToAvoidMask() override;
+	
 	virtual int32 GetGroupsToIgnoreMask() override;
 	/** END IRVOAvoidanceInterface */
 	
@@ -668,36 +667,25 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Vehicle, meta = (editcondition = "bOverrideMass", ClampMin = "0.001", UIMin = "0.001", DisplayName = "Vehicle Mass"))
 	float OverrideVehicleMass;
 
-	/** Use custom linear damping instead of build-in PhysX one */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Vehicle)
-	bool bCustomLinearDamping;
+	
 
 	/** */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Vehicle, meta = (EditCondition = "bCustomLinearDamping"))
-	FVector DryFrictionLinearDamping;
+	
 
 	/** */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Vehicle, meta = (EditCondition = "bCustomLinearDamping"))
-	FVector FluidFrictionLinearDamping;
 
-	/** Use custom angular damping instead of build-in PhysX one */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Vehicle)
-	bool bCustomAngularDamping;
 
-	/** */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Vehicle, meta = (EditCondition = "bCustomAngularDamping"))
-	FVector DryFrictionAngularDamping;
 
-	/** */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Vehicle, meta = (EditCondition = "bCustomAngularDamping"))
-	FVector FluidFrictionAngularDamping;
+
+	
+
 
 	/** 'Drag' force added to reduce linear movement */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Vehicle)
 	float LinearDamping;
 
 	/** 'Drag' force added to reduce angular movement */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Vehicle, meta = (EditCondition = "!bCustomAngularDamping"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Vehicle)
 	float AngularDamping;
 
 	/** User specified offset for the center of mass of this object, from the calculated location */
@@ -1051,37 +1039,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = BrakeSystem, meta = (editcondition = "bLimitMaxSpeed", ClampMin = "0.0", UIMin = "0.0"))
 	float SpeedLimitBrakeUpRatio;
 
-	/////////////////////////////////////////////////////////////////////////
-	// Friction
 
-	/** Ellipse to calculate static friction coefficient
-	 * http://hyperphysics.phy-astr.gsu.edu/hbase/frict2.html */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = PhysicsSimulation)
-	FVector2D StaticFrictionCoefficientEllipse;
 
-	/** Ellipse to calculate kinetic friction coefficient */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = PhysicsSimulation)
-	FVector2D KineticFrictionCoefficientEllipse;
 
-	/**  */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = PhysicsSimulation)
-	float KineticFrictionTorqueCoefficient;
-
-	/**  */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = PhysicsSimulation)
-	float RollingFrictionCoefficient;
-
-	/** The power to which linear speed is raised (for rolling friction calculations) */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = PhysicsSimulation)
-	float LinearSpeedPower;
-
-	/**  */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = PhysicsSimulation)
-	float RollingVelocityCoefficientSquared;
-
-	/////////////////////////////////////////////////////////////////////////
-	// Movement cache
-
+	
 protected:
 	float FinalMOI;
 
@@ -1153,7 +1114,7 @@ protected:
 	float LastSteeringStabilizerBrakeRatio;
 	float LastSpeedLimitBrakeRatio;
 
-	bool bUseKineticFriction;
+
 
 	/** The time we applied a small correction to body's Position or Orientation */
 	float CorrectionBeganTime;

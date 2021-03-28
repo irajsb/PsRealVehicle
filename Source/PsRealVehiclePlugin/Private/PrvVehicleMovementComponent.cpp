@@ -49,6 +49,7 @@ float FPIDController::CalcNewInput(float Error, float Position)
 	float Input = Error * Proportional + ErrorSum * Integral + Derivative * (LastPosition - Position);
 	LastPosition = Position;
 	return Input;
+	
 }
 
 
@@ -74,13 +75,10 @@ UPrvVehicleMovementComponent::UPrvVehicleMovementComponent(const FObjectInitiali
 	COMOffset = FVector::ZeroVector;
 	bClampSuspensionForce=true;
 
-	bCustomLinearDamping = false;
-	DryFrictionLinearDamping = FVector::ZeroVector;
-	FluidFrictionLinearDamping = FVector::ZeroVector;
+	
+
 LoadInterpSpeed=1.0f;
-	bCustomAngularDamping = false;
-	DryFrictionAngularDamping = FVector::ZeroVector;
-	FluidFrictionAngularDamping = FVector::ZeroVector;
+	
 
 	bLimitEngineTorque = true;
 	bIsMovementEnabled = true;
@@ -177,13 +175,7 @@ LoadInterpSpeed=1.0f;
 	TorqueTransferThrottleFactor = 1.f;
 	TorqueTransferSteeringFactor = 1.f;
 
-	StaticFrictionCoefficientEllipse = FVector2D(1.f, 1.f);
-	KineticFrictionCoefficientEllipse = FVector2D(1.f, 1.f);
 
-	KineticFrictionTorqueCoefficient = 1.f;
-	RollingFrictionCoefficient = 0.02f;
-	RollingVelocityCoefficientSquared = 0.000015f;
-	LinearSpeedPower = 1.f;
 
 	StiffnessFactor = 1.f;
 	CompressionDampingFactor = 1.f;
@@ -220,7 +212,7 @@ LoadInterpSpeed=1.0f;
 
 	UpdatedMesh = nullptr;
 
-	bUseKineticFriction = false;
+	
 	
 	CorrectionBeganTime = 0.f;
 	CorrectionEndTime = 0.f;
@@ -306,7 +298,7 @@ void UPrvVehicleMovementComponent::TickComponent(float DeltaTime, enum ELevelTic
 		}
 		if (bUseRVOAvoidance)
 		{
-		
+			
 			CalculateAvoidanceVelocity(DeltaTime);
 			UpdateAvoidance(DeltaTime);
 		}
@@ -355,7 +347,8 @@ void UPrvVehicleMovementComponent::TickComponent(float DeltaTime, enum ELevelTic
 		// Perform full simulation only on server and for local owner
 		if (ShouldAddForce())
 		{
-		
+
+			
 			// Suspension
 			UpdateSuspension(DeltaTime);
 		
@@ -464,28 +457,15 @@ void UPrvVehicleMovementComponent::InitBodyPhysics()
 	{
 		UpdatedMesh->SetMassOverrideInKg(NAME_None, OverrideVehicleMass);
 	}
-
-	if (!bCustomLinearDamping)
-	{
 		UpdatedMesh->SetLinearDamping(LinearDamping);
-	}
-	else
-	{
 		// Force zero physX damping
-		UpdatedMesh->SetLinearDamping(0.f);
-	}
-
-	if (!bCustomAngularDamping)
-	{
+		UpdatedMesh->SetLinearDamping(1.f);
 		UpdatedMesh->SetAngularDamping(AngularDamping);
-	}
-	else
-	{
-		// Force zero damping instead
-		UpdatedMesh->SetAngularDamping(0.f);
-	}
-
 	UpdatedMesh->SetCenterOfMass(COMOffset);
+
+
+	
+	
 }
 
 void UPrvVehicleMovementComponent::InitSuspension()
@@ -832,7 +812,7 @@ void UPrvVehicleMovementComponent::UpdateSteering(float DeltaTime)
 void UPrvVehicleMovementComponent::UpdateThrottle(float DeltaTime)
 {
 	PRV_CYCLE_COUNTER(STAT_PrvMovementUpdateThrottle);
-
+	
 	// -- [Car] --
 	if (bWheeledVehicle)
 	{
@@ -1034,7 +1014,7 @@ void UPrvVehicleMovementComponent::ShiftGear(bool bShiftUp)
 
 void UPrvVehicleMovementComponent::ShiftGearByTimer()
 {
-//	UE_LOG(LogTemp, Log, TEXT("GearTimerpassed"));
+
 	const bool bShiftUp = bPendingShiftUp;
 	bGearTimer = false;
 	const int32 PrevGear = CurrentGear;
@@ -1104,7 +1084,7 @@ float UPrvVehicleMovementComponent::CalcSteeringInput()
 		const float AngleDiff = AvoidanceVelocity.HeadingAngle() - GetVelocityForRVOConsideration().HeadingAngle();
 		const float clampedAngle=FMath::Clamp<float>(FMath::Abs<float>(AngleDiff),0,0.2)*FMath::Sign(AngleDiff);
 		if(bShowDebug)
-		UE_LOG(LogTemp,Error,TEXT(" ff %f %f "),AngleDiff);
+	
 		if (AngleDiff > 0.0f)
 		{
 			RawSteeringInput = FMath::Clamp(RawSteeringInput + RVOSteeringStep, clampedAngle, 1.0f);
@@ -1410,17 +1390,18 @@ void UPrvVehicleMovementComponent::UpdateBrake(float DeltaTime)
 void UPrvVehicleMovementComponent::UpdateTracksVelocity(float DeltaTime)
 {
 	// Calc total torque
-	RightTrackTorque = RightTrack.DriveTorque + RightTrack.KineticFrictionTorque + RightTrack.RollingFrictionTorque;
-	LeftTrackTorque = LeftTrack.DriveTorque + LeftTrack.KineticFrictionTorque + LeftTrack.RollingFrictionTorque;
+	RightTrackTorque = RightTrack.DriveTorque ;
+	LeftTrackTorque = LeftTrack.DriveTorque; 
 
+	
 	// Update right track velocity
-	const float RightAngularSpeed = RightTrack.AngularSpeed + (bUseKineticFriction ? (RightTrackTorque / FinalMOI * DeltaTime) : 0.f);
+	const float RightAngularSpeed = RightTrack.AngularSpeed + ((RightTrackTorque / FinalMOI * DeltaTime) );
 	RightTrackEffectiveAngularSpeed = RightAngularSpeed;
 	RightTrack.AngularSpeed = ApplyBrake(DeltaTime, RightAngularSpeed, RightTrack.BrakeRatio);
 	RightTrack.LinearSpeed = RightTrack.AngularSpeed * SprocketRadius;
 
 	// Update left track velocity
-	const float LeftAngularSpeed = LeftTrack.AngularSpeed + (bUseKineticFriction ? (LeftTrackTorque / FinalMOI * DeltaTime) : 0.f);
+	const float LeftAngularSpeed = LeftTrack.AngularSpeed + (  (LeftTrackTorque / FinalMOI * DeltaTime));
 	LeftTrackEffectiveAngularSpeed = LeftAngularSpeed;
 	LeftTrack.AngularSpeed = ApplyBrake(DeltaTime, LeftAngularSpeed, LeftTrack.BrakeRatio);
 	LeftTrack.LinearSpeed = LeftTrack.AngularSpeed * SprocketRadius;
@@ -1525,13 +1506,14 @@ void UPrvVehicleMovementComponent::UpdateEngine()
 	DriveTorque *= (bReverseGear) ? -1.f : 1.f;
 	DriveTorque *= EngineExtraPowerRatio;
 
+	
 	if (RawThrottleInput < 0.f)
 	{
 		DriveTorque *= EngineRearExtraPowerRatio;
 	}
 
 	DriveTorque *= StartExtraPower;
-
+	
 	// Debug
 	if (bShowDebug)
 	{
@@ -1548,6 +1530,7 @@ void UPrvVehicleMovementComponent::UpdateDriveForce()
 	{
 		RightTrack.DriveTorque = RightTrack.TorqueTransfer * DriveTorque;
 		RightTrack.DriveForce = UpdatedMesh->GetForwardVector() * (RightTrackTorque / SprocketRadius);
+	
 	}
 	else
 	{
@@ -1579,7 +1562,7 @@ void UPrvVehicleMovementComponent::UpdateAntiRollover(float DeltaTime)
 	if (DotProduct > LastAntiRolloverValue || DotProduct >= AntiRolloverValueThreshold)
 	{
 		const float TorqueMultiplier = AntiRolloverForceCurve.GetRichCurve()->Eval(DotProduct);
-		//UpdatedMesh->AddTorqueInRadians(AntiRolloverVector * TorqueMultiplier);
+		UpdatedMesh->AddTorqueInRadians(AntiRolloverVector * TorqueMultiplier);
 	}
 
 	LastAntiRolloverValue = DotProduct;
@@ -1868,6 +1851,7 @@ UpdatedMesh->AddForce(UKismetMathLibrary::Dot_VectorVector(RightVector,UpdatedMe
 		// Add suspension force if spring compressed
 		if (ShouldAddForce() && !SuspState.SuspensionForce.IsZero())
 		{
+			
 			UpdatedMesh->AddForceAtLocation(SuspState.SuspensionForce, SuspWorldLocation);
 		}
 
@@ -2139,11 +2123,7 @@ void UPrvVehicleMovementComponent::UpdateFriction(float DeltaTime)
 {
 	PRV_CYCLE_COUNTER(STAT_PrvMovementUpdateFriction);
 
-	// Reset tracks friction
-	RightTrack.KineticFrictionTorque = 0.f;
-	RightTrack.RollingFrictionTorque = 0.f;
-	LeftTrack.KineticFrictionTorque = 0.f;
-	LeftTrack.RollingFrictionTorque = 0.f;
+	
 
 	float MinimumWheelAngularSpeedLeft = BIG_NUMBER;
 	float MinimumWheelAngularSpeedRight = BIG_NUMBER;
@@ -2200,8 +2180,8 @@ void UPrvVehicleMovementComponent::UpdateFriction(float DeltaTime)
 			const FVector RelativeWheelVelocity = UKismetMathLibrary::ProjectVectorOnToPlane(WheelVelocity, SuspState.WheelCollisionNormal);
 
 			// Get friction coefficients
-			const float MuStatic = CalculateFrictionCoefficient(RelativeWheelVelocity, WheelDirection, StaticFrictionCoefficientEllipse);
-			const float MuKinetic = CalculateFrictionCoefficient(RelativeWheelVelocity, WheelDirection, KineticFrictionCoefficientEllipse);
+			
+	
 
 			// Mass and friction forces
 			const float VehicleMass = UpdatedMesh->GetMass();
@@ -2217,6 +2197,8 @@ void UPrvVehicleMovementComponent::UpdateFriction(float DeltaTime)
 				WheelBalancedForce = RelativeWheelVelocity * VehicleMass / DeltaTime / ActiveFrictionPoints + GravityBasedFriction;
 			}
 
+			
+		
 			// @temp For non-driving wheels X friction is disabled
 			float LongitudeFrictionFactor = 1.f;
 			if (bWheeledVehicle && !SuspState.SuspensionInfo.bDrivingWheel)
@@ -2224,20 +2206,9 @@ void UPrvVehicleMovementComponent::UpdateFriction(float DeltaTime)
 				LongitudeFrictionFactor = 0.f;
 			}
 
-			// Full friction forces
-			const FVector StaticFrictionForceX = UKismetMathLibrary::ProjectVectorOnToVector(WheelBalancedForce, FrictionXVector) * StaticFrictionCoefficientEllipse.X * LongitudeFrictionFactor * FMath::Sign(WheelTrack->BrakeRatio);
-			const FVector StaticFrictionForceY = UKismetMathLibrary::ProjectVectorOnToVector(WheelBalancedForce, FrictionYVector) * StaticFrictionCoefficientEllipse.Y;
-			const FVector FullStaticFrictionForce =
-				StaticFrictionForceX.GetClampedToMaxSize(SuspState.WheelLoad * StaticFrictionCoefficientEllipse.X) +
-				StaticFrictionForceY.GetClampedToMaxSize(SuspState.WheelLoad * StaticFrictionCoefficientEllipse.Y);
-
-			const FVector KineticFrictionForceX = UKismetMathLibrary::ProjectVectorOnToVector(WheelBalancedForce, FrictionXVector) * KineticFrictionCoefficientEllipse.X * LongitudeFrictionFactor;
-			const FVector KineticFrictionForceY = UKismetMathLibrary::ProjectVectorOnToVector(WheelBalancedForce, FrictionYVector) * KineticFrictionCoefficientEllipse.Y;
-			const FVector FullKineticFrictionForce = KineticFrictionForceX.GetClampedToMaxSize(SuspState.WheelLoad * StaticFrictionCoefficientEllipse.X) + KineticFrictionForceY.GetClampedToMaxSize(SuspState.WheelLoad * StaticFrictionCoefficientEllipse.Y);
-
 			// Drive Force from transmission torque
 			FVector TransmissionDriveForce = UKismetMathLibrary::ProjectVectorOnToPlane(WheelTrack->DriveForce, SuspState.WheelCollisionNormal);
-
+			UE_LOG(LogTemp,Log,TEXT("Drive %s"),*TransmissionDriveForce.ToString());
 			if (bScaleForceToActiveFrictionPoints && ActiveDrivenFrictionPoints != 0 && SuspensionData.Num() != 0)
 			{
 				const float Ratio = static_cast<float>(SuspensionData.Num()) / static_cast<float>(ActiveDrivenFrictionPoints);
@@ -2245,31 +2216,26 @@ void UPrvVehicleMovementComponent::UpdateFriction(float DeltaTime)
 			}
 
 			// Full drive forces
-			const FVector FullStaticDriveForce = TransmissionDriveForce * StaticFrictionCoefficientEllipse.X * LongitudeFrictionFactor;
-			const FVector FullKineticDriveForce = TransmissionDriveForce * KineticFrictionCoefficientEllipse.X * LongitudeFrictionFactor;
-
+			 FVector FullDriveForce = TransmissionDriveForce  * LongitudeFrictionFactor;
+			
 			// Full forces
-			const FVector FullStaticForce = FullStaticDriveForce + FullStaticFrictionForce;
-			const FVector FullKineticForce = FullKineticDriveForce + FullKineticFrictionForce;
-
-			// We want to apply higher friction if forces are bellow static friction limit
-			bUseKineticFriction = FullStaticDriveForce.Size() >= (SuspState.WheelLoad * MuStatic);
-			const FVector FullKineticFrictionNormalizedForce = bUseKineticFriction ? FullKineticFrictionForce.GetSafeNormal() : FVector::ZeroVector;
-			const FVector ApplicationForce = bUseKineticFriction
-												 ? FullKineticForce.GetClampedToMaxSize(SuspState.WheelLoad * MuKinetic*MSBoost)
-												 : FullStaticForce.GetClampedToMaxSize(SuspState.WheelLoad * MuStatic*MSBoost);
-
-			if (bUseKineticFriction == false)
-			{
+			
+			
+			
+			
+			const FVector ApplicationForce = FullDriveForce.GetClampedToMaxSize(SuspState.WheelLoad * 1);
+							
+			
 				const float WorldPointForwardVectorSpeed = FVector::DotProduct(WorldPointVelocity, UpdatedMesh->GetForwardVector());
 				const float CurrentAngularSpeed = WorldPointForwardVectorSpeed / SprocketRadius;
 				MinimumWheelAngularSpeed = FMath::Min(MinimumWheelAngularSpeed, CurrentAngularSpeed);
 				WheelTrack->AngularSpeed = MinimumWheelAngularSpeed;
-			}
+			
 
 			// Apply force to mesh
 			if (ShouldAddForce())
 			{
+				UE_LOG(LogTemp,Log,TEXT("Applicationforce %s"),*ApplicationForce.ToString());
 				UpdatedMesh->AddForceAtLocation(ApplicationForce*CustomForceMuliplier, SuspState.WheelCollisionLocation);
 			}
 
@@ -2283,40 +2249,22 @@ void UPrvVehicleMovementComponent::UpdateFriction(float DeltaTime)
 
 			// How much of friction force will effect transmission
 			FVector TransmissionFrictionForce = FVector::ZeroVector;
-			if (bUseKineticFriction && FullKineticFrictionNormalizedForce.SizeSquared() > SMALL_NUMBER)
-			{
-				TransmissionFrictionForce = UKismetMathLibrary::ProjectVectorOnToVector(ApplicationForce, FullKineticFrictionNormalizedForce) * (-1.f) * (TrackMass + SprocketMass) / VehicleMass * FrictionDirectionMultiplier;
-			}
-			const FVector WorldFrictionForce = UpdatedMesh->GetComponentTransform().InverseTransformVectorNoScale(TransmissionFrictionForce);
-			const float TrackKineticFrictionTorque = UKismetMathLibrary::ProjectVectorOnToVector(WorldFrictionForce, FVector::ForwardVector).X * SprocketRadius;
-
-			WheelTrack->KineticFrictionTorque += (TrackKineticFrictionTorque * KineticFrictionTorqueCoefficient);
+			
 
 			/////////////////////////////////////////////////////////////////////////
 			// Rolling friction torque
 
 			// @todo Make this a force instead of torque!
-			const float ReverseVelocitySign = (-1.f) * FMath::Sign(WheelTrack->LinearSpeed);
-			const float TrackRollingFrictionTorque = SuspState.WheelLoad * RollingFrictionCoefficient * ReverseVelocitySign +
-													 SuspState.WheelLoad * FMath::Pow(WheelTrack->LinearSpeed, LinearSpeedPower) * FMath::Pow(RollingVelocityCoefficientSquared, 2.f) * ReverseVelocitySign;
-
+			
 			// Add torque to track
-			WheelTrack->RollingFrictionTorque += TrackRollingFrictionTorque;
+		
 
 			/////////////////////////////////////////////////////////////////////////
 			// Debug
 
 			if (bShowDebug)
 			{
-				// Friction type
-				if (bUseKineticFriction)
-				{
-					DrawDebugString(GetWorld(), SuspState.WheelCollisionLocation, TEXT("Kinetic"), nullptr, FColor::Blue, 0.f);
-				}
-				else
-				{
-					DrawDebugString(GetWorld(), SuspState.WheelCollisionLocation, TEXT("Static"), nullptr, FColor::Red, 0.f);
-				}
+				
 
 				// Force application
 				DrawDebugLine(GetWorld(), SuspState.WheelCollisionLocation, SuspState.WheelCollisionLocation + ApplicationForce * 0.0001f, FColor::Cyan, false, 0.f, 0, 10.f);
@@ -2334,62 +2282,14 @@ void UPrvVehicleMovementComponent::UpdateFriction(float DeltaTime)
 	}
 }
 
-float UPrvVehicleMovementComponent::CalculateFrictionCoefficient(FVector DirectionVelocity, FVector ForwardVector, FVector2D FrictionEllipse)
-{
-	// dot(A,B)
-	const float DirectionDotProduct = FVector::DotProduct(DirectionVelocity.GetSafeNormal(), ForwardVector);
-
-	FVector2D MuVector;
-	// x = r1 * dot(A,B)
-	MuVector.X = FrictionEllipse.X * DirectionDotProduct;
-	// y = r2 * sqrt(1 - dot(A,B)^2 )
-	MuVector.Y = FrictionEllipse.Y * FMath::Sqrt(1.f - FMath::Square(DirectionDotProduct));
-
-	return MuVector.Size();
-}
-
 void UPrvVehicleMovementComponent::UpdateLinearVelocity(float DeltaTime)
 {
-	if (ShouldAddForce() && bCustomLinearDamping)
-	{
-		const FVector LocalLinearVelocity = UpdatedMesh->GetComponentTransform().InverseTransformVectorNoScale(UpdatedMesh->GetPhysicsLinearVelocity());
-		const FVector SignVector = FVector(FMath::Sign(LocalLinearVelocity.X), FMath::Sign(LocalLinearVelocity.Y), FMath::Sign(LocalLinearVelocity.Z));
-		FVector NewLinearVelocity = LocalLinearVelocity - DeltaTime * (SignVector * DryFrictionLinearDamping + FluidFrictionLinearDamping * LocalLinearVelocity);
-
-		// Clamp to zero vector in per-component basis
-		NewLinearVelocity.X = SignVector.X * FMath::Max(0.f, SignVector.X * NewLinearVelocity.X);
-		NewLinearVelocity.Y = SignVector.Y * FMath::Max(0.f, SignVector.Y * NewLinearVelocity.Y);
-		NewLinearVelocity.Z = SignVector.Z * FMath::Max(0.f, SignVector.Z * NewLinearVelocity.Z);
-
-		UpdatedMesh->SetPhysicsLinearVelocity(UpdatedMesh->GetComponentTransform().TransformVectorNoScale(NewLinearVelocity));
-
-		if (bDebugCustomDamping)
-		{
-			UE_LOG(LogPrvVehicle, Error, TEXT("Linear damping WAS: %s, NOW: %s"), *LocalLinearVelocity.ToString(), *NewLinearVelocity.ToString());
-		}
-	}
+	//TODO
 }
 
 void UPrvVehicleMovementComponent::UpdateAngularVelocity(float DeltaTime)
 {
-	if (ShouldAddForce() && bCustomAngularDamping)
-	{
-		const FVector LocalAngularVelocity = UpdatedMesh->GetComponentTransform().InverseTransformVectorNoScale(UpdatedMesh->GetPhysicsAngularVelocityInDegrees());
-		const FVector SignVector = FVector(FMath::Sign(LocalAngularVelocity.X), FMath::Sign(LocalAngularVelocity.Y), FMath::Sign(LocalAngularVelocity.Z));
-		FVector NewAngularVelocity = LocalAngularVelocity - DeltaTime * (SignVector * DryFrictionAngularDamping + FluidFrictionAngularDamping * LocalAngularVelocity);
-
-		// Clamp to zero vector in per-component basis
-		NewAngularVelocity.X = SignVector.X * FMath::Max(0.f, SignVector.X * NewAngularVelocity.X);
-		NewAngularVelocity.Y = SignVector.Y * FMath::Max(0.f, SignVector.Y * NewAngularVelocity.Y);
-		NewAngularVelocity.Z = SignVector.Z * FMath::Max(0.f, SignVector.Z * NewAngularVelocity.Z);
-
-		UpdatedMesh->SetPhysicsAngularVelocityInDegrees(UpdatedMesh->GetComponentTransform().TransformVectorNoScale(NewAngularVelocity));
-
-		if (bDebugCustomDamping)
-		{
-			UE_LOG(LogPrvVehicle, Error, TEXT("Angular damping WAS: %s, NOW: %s"), *LocalAngularVelocity.ToString(), *NewAngularVelocity.ToString());
-		}
-	}
+	//TODO
 }
 
 void UPrvVehicleMovementComponent::AnimateWheels(float DeltaTime)
@@ -2584,6 +2484,7 @@ void UPrvVehicleMovementComponent::SetThrottleInput(float Throttle)
 {
 
 
+	
 
 	LastRawThrottleInput = RawThrottleInput;
 
@@ -2605,7 +2506,7 @@ void UPrvVehicleMovementComponent::SetThrottleInput(float Throttle)
 	RawThrottleInput = NewThrottle;
 
 	
-
+	
 }
 
 void UPrvVehicleMovementComponent::SetSteeringInput(float Steering)
@@ -3087,19 +2988,25 @@ FVector UPrvVehicleMovementComponent::GetVelocityForRVOConsideration()
 	return Velocity2D;
 }
 
-void UPrvVehicleMovementComponent::SetAvoidanceGroupMask(int32 GroupFlags)
-{
-	AvoidanceGroup.SetFlagsDirectly(GroupFlags);
-}
+
 
 int32 UPrvVehicleMovementComponent::GetAvoidanceGroupMask()
 {
 	return AvoidanceGroup.Packed;
 }
 
+void UPrvVehicleMovementComponent::SetAvoidanceGroupMask(int32 GroupFlags)
+{
+	AvoidanceGroup.SetFlagsDirectly(GroupFlags);
+}
+
 void UPrvVehicleMovementComponent::SetGroupsToAvoidMask(int32 GroupFlags)
 {
 	GroupsToAvoid.SetFlagsDirectly(GroupFlags);
+}
+void UPrvVehicleMovementComponent::SetGroupsToIgnoreMask(int32 GroupFlags)
+{
+	GroupsToIgnore.SetFlagsDirectly(GroupFlags);
 }
 
 int32 UPrvVehicleMovementComponent::GetGroupsToAvoidMask()
@@ -3107,10 +3014,6 @@ int32 UPrvVehicleMovementComponent::GetGroupsToAvoidMask()
 	return GroupsToAvoid.Packed;
 }
 
-void UPrvVehicleMovementComponent::SetGroupsToIgnoreMask(int32 GroupFlags)
-{
-	GroupsToIgnore.SetFlagsDirectly(GroupFlags);
-}
 
 int32 UPrvVehicleMovementComponent::GetGroupsToIgnoreMask()
 {
